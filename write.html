@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="style_write.css">
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+
+    <title>하루글</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@200..900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="day" id="day"></div>
+    <div class="title">오늘의 글감</div>
+    <div class="line"></div>
+    <div class="word" id="word"></div>
+    <div class="line"></div>
+    <div class="container"> 
+        <textarea class="titleInput" id="titleInput" placeholder="제목을 입력하세요." maxlength="350"></textarea>
+        <textarea class="textInput" id="textInput" placeholder="텍스트를 입력하세요." maxlength="350"></textarea>
+        <div id="counter">
+            <p>글자 수: <span id="charCount">0/350</span></p>
+        </div>
+        <button id="saveButton">중간 저장</button>
+        <button id="clearButton">지우기</button>
+        <button id="uploadButton" onclick="upload_ok()">업로드</button>
+        <div id="preview">
+            <h4>미리보기</h2>
+            <p id="textPreview"></p>
+        </div>
+    </div>
+
+    <footer>
+        <button onclick="go_today()" class="nowHere">하루 글</button>
+        <button onclick="go_keep()">보관함</button>
+        <button onclick="go_vote()">투표함</button>
+        <button onclick="go_mypage()">내 서랍</button>
+        <button onclick="go_option()">도구함</button>
+    </footer>
+
+    <script>
+        // Firebase 초기화
+        const firebaseConfig = {
+            apiKey: "AIzaSyALH2cc2T41m3C8_Bqt98yFP0NJqeTTmKU",
+            authDomain: "coupong-50898.firebaseapp.com",
+            databaseURL: "https://coupong-50898-default-rtdb.firebaseio.com",
+            projectId: "coupong-50898",
+            storageBucket: "coupong-50898.firebasestorage.app",
+            messagingSenderId: "396007126503",
+            appId: "1:396007126503:web:e8caa6aaafb48f54a5b942",
+            measurementId: "G-R2604RJDDV"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
+
+        const today = new Date().toLocaleDateString("ko-KR", {
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            timeZone: "Asia/Seoul"
+        }).replace(/\./g, "/").replace(/\s/g, "").replace(/\/$/, "");
+        const savedate = today;
+
+        const dayDiv = document.getElementById("day");
+        const wordDiv = document.getElementById("word");
+
+        dayDiv.innerHTML = today
+
+        firebase.database().ref(`word/${today}`).on("value", (snapshot) => {
+            const word = snapshot.val();
+            wordDiv.innerHTML = word;
+        });
+
+        document.getElementById("saveButton").addEventListener("click", () => {
+            const title = document.getElementById("titleInput").value;
+            const text = document.getElementById("textInput").value;
+            localStorage.setItem("savedTitle", title);
+            localStorage.setItem("savedText", text);
+            updatePreview(text);
+        });
+
+        document.getElementById("clearButton").addEventListener("click", () => {
+            document.getElementById("titleInput").value = "";
+            document.getElementById("textInput").value = "";
+            localStorage.removeItem("savedTitle");
+            localStorage.removeItem("savedText");
+            updatePreview("");
+        });
+
+        function updatePreview(text) {
+            const previewElement = document.getElementById("textPreview");
+            previewElement.innerHTML = text.replace(/\n/g, "<br>"); // 줄바꿈을 <br>로 변환
+        }
+
+        // 페이지 로드 시 저장된 텍스트 로드
+        window.onload = () => {
+            const savedTitle = localStorage.getItem("savedTitle");
+            const savedText = localStorage.getItem("savedText");
+            if (savedText) {
+                document.getElementById("titleInput").value = savedTitle;
+                document.getElementById("textInput").value = savedText;
+                updatePreview(savedText);
+            }
+        };
+        document.getElementById("textInput").addEventListener("input", () => {
+            const text = document.getElementById("textInput").value;
+            document.getElementById("charCount").innerText = `${text.length}/350`;
+        });
+
+        function upload_ok() {
+            const textInput = document.getElementById("textInput").value;
+            const titleInput = document.getElementById("titleInput").value;
+
+            // 글 내용이 비어있는 경우 업로드 차단
+            if (!textInput.trim()) {
+                alert("글 내용을 입력해주세요.");
+                return;
+            }
+
+            const today = new Date().toLocaleDateString("ko-KR", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                timeZone: "Asia/Seoul"
+            }).replace(/\./g, "/").replace(/\s/g, "").replace(/\/$/, "");
+            const postsPath = `posts/${today}`;
+            const userNickname = localStorage.getItem("dailyWrite_user") || "guest"; // 사용자 닉네임 (로컬 스토리지에서 가져옴)
+
+            // 사용자 정보 가져오기
+            firebase.database().ref(`users/${userNickname}`).once("value").then((snapshot) => {
+                const userData = snapshot.val();
+
+                if (!userData) {
+                    alert("사용자 정보를 가져올 수 없습니다. 다시 로그인해주세요.");
+                    return;
+                }
+
+                const userAge = userData.age || "알 수 없음"; // 사용자 나이 (기본값: '알 수 없음')
+
+                // 오늘 올라온 게시물 수를 구하기
+                firebase.database().ref(postsPath).once("value").then((snapshot) => {
+                    const posts = snapshot.val() || {};
+                    const postCount = Object.keys(posts).length; // 오늘 올라온 게시물 수
+                    const newPostId = postCount + 1; // 새 게시물 번호
+
+                    // 줄바꿈을 <br>로 변환
+                    const formattedContent = textInput.replace(/\n/g, "<br>");
+
+                    // 새 게시물 데이터 생성
+                    const postData = {
+                        title: titleInput,
+                        content: formattedContent, // 줄바꿈 변환된 텍스트
+                        time: new Date().toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
+                        like: 0, // 초기 좋아요 수
+                        user: userNickname, // 사용자 닉네임
+                        age: userAge, // 사용자 나이
+                    };
+
+                    // 게시물 데이터 저장
+                    firebase.database().ref(`${postsPath}/${newPostId}`).set(postData)
+                        .then(() => {
+                            alert("글이 성공적으로 업로드되었습니다!");
+                            document.getElementById("textInput").value = ""; // 입력창 초기화
+                            updatePreview(""); // 미리보기 초기화
+                            localStorage.removeItem("savedTitle");
+                            localStorage.removeItem("savedText"); // 로컬 저장 데이터 제거
+                            window.location.href = `others.html`;
+                        })
+                        .catch((error) => {
+                            console.error("글 업로드 중 오류 발생:", error);
+                            alert("글 업로드 중 오류가 발생했습니다. 다시 시도해주세요.");
+                        });
+                });
+            }).catch((error) => {
+                console.error("사용자 정보 가져오기 오류:", error);
+                alert("사용자 정보를 가져오는 중 오류가 발생했습니다.");
+            });
+        }
+
+        function go_today() {
+            window.location.href = `others.html`;
+        }
+        function go_keep() {
+            window.location.href = `keep.html`;
+        }
+    </script>
+</body>
+</html>
