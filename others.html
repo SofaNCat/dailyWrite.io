@@ -129,11 +129,12 @@
                     isExpanded = !isExpanded; // 토글 상태 변경
                     if (isExpanded) {
                         contentDiv.textContent = sanitizedContent; // 긴 글 표시
+                    } else if (sanitizedContent.split("\n").length > 6) {
+                        // 줄 수가 6줄을 초과하는 경우
+                        contentDiv.textContent = sanitizedContent.split("\n").slice(0, 6).join("\n") + "\n...";
                     } else {
-                        // 다시 짧은 글로 설정
-                        contentDiv.textContent = sanitizedContent.length > 200
-                            ? sanitizedContent.substring(0, 200) + "..."
-                            : sanitizedContent.split("\n").slice(0, 6).join("\n") + "\n...";
+                        // 글자 수 200자 미만이고 6줄 이하인 경우
+                        contentDiv.textContent = sanitizedContent;
                     }
                 });
                 cardDiv.appendChild(contentDiv);
