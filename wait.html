@@ -121,6 +121,77 @@
       });
     }
 
+    async function assignRolesToUsers() {
+      const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
+      const jobsRef = firebase.database().ref('jobs');
+
+      const snapshot = await jobsRef.once('value');
+      const jobs = snapshot.val();
+
+      if (!jobs || Object.keys(jobs).length < 2) {
+        throw new Error('직업 데이터가 올바르지 않습니다.');
+      }
+
+      const roleKeys = Object.keys(jobs);
+      const firstRoleIndex = Math.floor(Math.random() * roleKeys.length);
+      const firstRole = jobs[roleKeys[firstRoleIndex]];
+      const secondRole = jobs[roleKeys[1 - firstRoleIndex]];
+
+      console.log(`첫 번째 플레이어 직업: ${firstRole}, 두 번째 플레이어 직업: ${secondRole}`);
+
+      await userRef.transaction((users) => {
+        if (!users || Object.keys(users).length !== 2) {
+          throw new Error('사용자가 정확히 2명이어야 합니다.');
+        }
+
+        const userIds = Object.keys(users);
+        users[userIds[0]].role = firstRole;
+        users[userIds[1]].role = secondRole;
+
+        localStorage.setItem('role', firstRole); // 첫 번째 플레이어 로컬 저장
+
+        return users;
+      });
+
+      console.log('모든 사용자에게 역할이 할당되었습니다.');
+    }
+
+    async function assignRolesAndStartGame() {
+      const roomRef = firebase.database().ref(`rooms/${currentRoom}`);
+      const foldersRef = firebase.database().ref(`rooms/${currentRoom}/folders`);
+      const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
+
+      try {
+        const userSnapshot = await userRef.once('value');
+        const users = userSnapshot.val();
+
+        if (!users || Object.keys(users).length !== 2) {
+          alert('사용자가 정확히 2명이어야 게임을 시작할 수 있습니다.');
+          throw new Error('사용자가 정확히 2명이 아닙니다.');
+        }
+
+        const snapshot = await roomRef.once('value');
+        const roomData = snapshot.val();
+
+        if (roomData && roomData.isStarted) {
+          console.log('게임이 이미 시작되었습니다.');
+          await assignRolesToUsers();
+          window.location.href = 'map.html';
+          return;
+        }
+
+        const foldersData = createFoldersData();
+        await roomRef.update({ isStarted: true });
+        await foldersRef.set(foldersData);
+
+        console.log('폴더 데이터 저장 완료.');
+        await assignRolesToUsers();
+        window.location.href = 'map.html';
+      } catch (error) {
+        console.error('게임 시작 중 오류 발생:', error.message);
+      }
+    }
+
     function createFoldersData(depth = 0, maxDepth = 5) {
       if (depth >= maxDepth) return {};
 
@@ -149,103 +220,9 @@
       return folders;
     }
 
-    
-  // 역할 랜덤 배정
-  function assignRolesToUsers() {
-  const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
-  const roles = ['Vaccine', 'Malware']; // 역할 리스트
-  let currentRoleIndex = 0; // 역할 순환을 위한 인덱스
-
-  return userRef.transaction((users) => {
-    if (!users) return users; // 사용자가 없으면 그대로 반환
-
-    Object.keys(users).forEach((userId) => {
-      if (!users[userId].role) {
-        // 역할이 아직 할당되지 않은 사용자에게 역할 할당
-        users[userId].role = roles[currentRoleIndex % roles.length];
-        localStorage.setItem('role', users[userId].role);
-        currentRoleIndex++;
-      }
-    });
-
-    return users; // 업데이트된 사용자 데이터 반환
-  }).then(() => {
-    console.log('모든 사용자에게 역할이 할당되었습니다.');
-  }).catch((error) => {
-    console.error('역할 할당 중 오류 발생:', error);
-  });
-}
-
-
-  async function assignRolesAndStartGame() {
-  const roomcheckRef = firebase.database().ref(`rooms/${currentRoom}`);
-  const roomRef = firebase.database().ref(`rooms/${currentRoom}/folders`);
-
-  // 방 상태 확인
-  roomcheckRef.once('value').then((snapshot) => {
-    const roomData = snapshot.val();
-
-    if (roomData && roomData.isStarted) {
-      // 게임이 이미 시작된 경우
-      console.log('게임이 이미 시작되었습니다. 역할만 배정합니다.');
-      assignRolesToUsers(); // 역할만 배정
-      setTimeout(() => {
-        localStorage.setItem('currentRoom', currentRoom);
-        window.location.href = 'map.html'; // 폴더 페이지로 이동
-      }, 1000);
-    } else {
-      // 게임이 아직 시작되지 않은 경우
-      console.log('게임이 시작되지 않았습니다. 폴더를 저장하고 역할을 배정합니다.');
-
-      // 폴더 데이터 생성
-      const folderData = createFoldersData();
-
-      // isStarted 설정 및 폴더 데이터 저장
-      roomcheckRef.update({ isStarted: true }).then(() => {
-        roomRef.set(folderData).then(() => {
-          console.log('폴더 데이터 저장 완료. 역할을 배정합니다.');
-          assignRolesToUsers(); // 역할 설정
-          setTimeout(() => {
-            localStorage.setItem('currentRoom', currentRoom);
-            window.location.href = 'map.html'; // 폴더 페이지로 이동
-          }, 1000);
-        }).catch((error) => {
-          console.error('폴더 데이터 저장 중 오류 발생:', error);
-        });
-      }).catch((error) => {
-        console.error('isStarted 설정 중 오류 발생:', error);
-      });
-    }
-  }).catch((error) => {
-    console.error('Firebase에서 방 상태 확인 중 오류 발생:', error);
-  });
-}
-
-
-    function listenForRoleAndGameStart() {
-      const userId = localStorage.getItem('userId');
-      const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
-      const roomRef = firebase.database().ref(`rooms/${currentRoom}/gameStarted`);
-
-      userRef.on('value', (snapshot) => {
-        const userData = snapshot.val();
-        if (userData && userData.role) {
-          alert(`당신의 역할은 ${userData.role === 'Vaccine' ? '백신' : '악성코드'}입니다.`);
-          window.location.href = 'map.html';
-        }
-      });
-
-      roomRef.on('value', (snapshot) => {
-        if (snapshot.val() === true) {
-          window.location.href = 'map.html';
-        }
-      });
-    }
-
     document.getElementById('roomTitle').textContent = `대기실: ${currentRoom}`;
     joinRoom();
     fetchUserList();
-    listenForRoleAndGameStart();
 
     document.querySelector('.start-game').addEventListener('click', assignRolesAndStartGame);
   </script>
