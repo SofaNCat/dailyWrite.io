@@ -45,6 +45,7 @@
 </head>
 <body>
   <h1 id="roomTitle">대기실</h1>
+  <h4>대기 인원</h4>
   <ul class="user-list" id="userList"></ul>
   <button class="start-game">게임 시작</button>
 
@@ -67,162 +68,61 @@
     const app = firebase.initializeApp(firebaseConfig);
     const database = firebase.database(app);
 
-    const currentRoom = localStorage.getItem('currentRoom');
-    if (!currentRoom) {
-      alert('방 정보가 없습니다.');
-      window.location.href = 'lobby.html';
-    }
+    // 현재 방 정보 가져오기
+    const roomId = localStorage.getItem('currentRoom');
+    const userName = localStorage.getItem('userName');
+    const userId = localStorage.getItem('userId');
+    const role = localStorage.getItem('role');
+    const roomRef = database.ref(`rooms/${roomId}`);
+    const userRef = database.ref(`rooms/${roomId}/users`);
 
-    function generateRandomNickname() {
-      const adjectives = ['빠른', '강한', '똑똑한', '용감한'];
-      const animals = ['호랑이', '사자', '토끼', '독수리'];
-      return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
-    }
+    // 대기실 제목 설정
+    document.getElementById('roomTitle').textContent = `${roomId} 대기실`;
 
-    function joinRoom() {
-      let nickname = localStorage.getItem('nickname');
-      let userId = localStorage.getItem('userId');
-
-      if (!nickname || !userId) {
-        nickname = generateRandomNickname();
-        const userRef = firebase.database().ref(`rooms/${currentRoom}/users`).push();
-        userId = userRef.key;
-
-        userRef.set({ nickname }).then(() => {
-          localStorage.setItem('nickname', nickname);
-          localStorage.setItem('userId', userId);
-          console.log('대기실에 새로 참여:', nickname);
-        });
-      } else {
-        const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
-        userRef.once('value').then((snapshot) => {
-          if (!snapshot.exists()) {
-            userRef.set({ nickname });
-          }
-        });
-      }
-    }
-
+    // 사용자 목록 렌더링 함수
     function renderUserList(users) {
       const userList = document.getElementById('userList');
-      userList.innerHTML = '';
-      for (const [userId, userData] of Object.entries(users || {})) {
+      userList.innerHTML = ''; // 기존 목록 초기화
+
+      for (const [id, user] of Object.entries(users || {})) {
         const li = document.createElement('li');
-        li.textContent = userData.nickname;
+        li.textContent = `${user.name} (${user.role})`;
         userList.appendChild(li);
       }
     }
 
-    function fetchUserList() {
-      const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
-      userRef.on('value', (snapshot) => {
+    // 실시간 사용자 목록 업데이트
+    userRef.on('value', (snapshot) => {
+      const users = snapshot.val();
+      renderUserList(users);
+    });
+
+    // 게임 시작 버튼 동작
+    document.querySelector('.start-game').addEventListener('click', () => {
+      userRef.once('value').then((snapshot) => {
         const users = snapshot.val();
-        renderUserList(users);
-      });
-    }
+        const userCount = Object.keys(users || {}).length;
 
-    async function assignRolesToUsers() {
-      const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
-      const jobsRef = firebase.database().ref('jobs');
-
-      const snapshot = await jobsRef.once('value');
-      const jobs = snapshot.val();
-
-      if (!jobs || Object.keys(jobs).length < 2) {
-        throw new Error('직업 데이터가 올바르지 않습니다.');
-      }
-
-      const roleKeys = Object.keys(jobs);
-      const firstRoleIndex = Math.floor(Math.random() * roleKeys.length);
-      const firstRole = jobs[roleKeys[firstRoleIndex]];
-      const secondRole = jobs[roleKeys[1 - firstRoleIndex]];
-
-      console.log(`첫 번째 플레이어 직업: ${firstRole}, 두 번째 플레이어 직업: ${secondRole}`);
-
-      await userRef.transaction((users) => {
-        if (!users || Object.keys(users).length < 2) {
-          throw new Error('사용자가 2명 이상이어야 역할을 설정할 수 있습니다.');
-        }
-
-        const userIds = Object.keys(users);
-        if (!users[userIds[0]].role) users[userIds[0]].role = firstRole;
-        if (!users[userIds[1]].role) users[userIds[1]].role = secondRole;
-
-        localStorage.setItem('role', users[localStorage.getItem('userId')].role);
-        return users;
-      });
-
-      console.log('모든 사용자에게 역할이 할당되었습니다.');
-    }
-
-    async function assignRolesAndStartGame() {
-      const roomcheckRef = firebase.database().ref(`rooms/${currentRoom}`);
-      const foldersRef = firebase.database().ref(`rooms/${currentRoom}/folders`);
-      const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
-
-      try {
-        const userSnapshot = await userRef.once('value');
-        const users = userSnapshot.val();
-
-        if (!users || Object.keys(users).length !== 2) {
-          alert('사용자가 정확히 2명이어야 게임을 시작할 수 있습니다.');
+        if (userCount !== 2) {
+          alert('게임을 시작하려면 2명의 사용자가 있어야 합니다.');
           return;
         }
 
-        const snapshot = await roomcheckRef.once('value');
-        const roomData = snapshot.val();
+        // 게임 시작 로직 추가
+        roomRef.update({ isStarted: true }).then(() => {
+          alert('게임이 시작됩니다!');
+          // 게임 페이지로 이동
+          window.location.href = 'game.html';
+        });
+      });
+    });
 
-        if (roomData && roomData.isStarted) {
-          console.log('게임이 이미 시작되었습니다.');
-          window.location.href = 'map.html';
-          return;
-        }
-
-        const foldersData = createFoldersData();
-        await roomcheckRef.update({ isStarted: true });
-        await foldersRef.set(foldersData);
-        await assignRolesToUsers();
-
-        console.log('게임 시작 성공!');
-        window.location.href = 'map.html';
-      } catch (error) {
-        console.error('게임 시작 중 오류 발생:', error.message);
+    // 방 나가기 시 사용자 삭제
+    window.addEventListener('beforeunload', () => {
+      if (userId) {
+        userRef.child(userId).remove();
       }
-    }
-
-    function createFoldersData(depth = 0, maxDepth = 5) {
-      if (depth >= maxDepth) return {};
-
-      const folders = {};
-      const numFolders = Math.floor(Math.random() * 3) + 3;
-
-      for (let i = 0; i < numFolders; i++) {
-        const folderId = `folder${Math.random().toString(36).substring(2, 6)}`;
-        const files = {};
-        const numFiles = Math.floor(Math.random() * 4);
-        for (let j = 0; j < numFiles; j++) {
-          const fileId = `file${Math.random().toString(36).substring(2, 6)}`;
-          files[fileId] = {
-            name: `파일 ${Math.floor(Math.random() * 1000)}.txt`,
-            state: 'normal',
-          };
-        }
-
-        folders[folderId] = {
-          name: `폴더 ${Math.random().toString(36).substring(2, 6)}`,
-          files: files,
-          subfolders: createFoldersData(depth + 1, maxDepth),
-        };
-      }
-
-      return folders;
-    }
-
-    document.getElementById('roomTitle').textContent = `대기실: ${currentRoom}`;
-    joinRoom();
-    fetchUserList();
-
-    document.querySelector('.start-game').addEventListener('click', assignRolesAndStartGame);
+    });
   </script>
 </body>
 </html>
