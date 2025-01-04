@@ -73,47 +73,41 @@
       window.location.href = 'lobby.html';
     }
 
+    // 닉네임 생성 및 사용자 추가
     function generateRandomNickname() {
       const adjectives = ['빠른', '강한', '똑똑한', '용감한'];
       const animals = ['호랑이', '사자', '토끼', '독수리'];
       return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
     }
 
-    // 사용자를 대기실에 추가
     function joinRoom() {
       let nickname = localStorage.getItem('nickname');
       let userId = localStorage.getItem('userId');
 
       if (!nickname || !userId) {
-        // 새 닉네임 생성 및 Firebase에 추가
         nickname = generateRandomNickname();
         const userRef = firebase.database().ref(`rooms/${currentRoom}/users`).push();
-        userId = userRef.key; // Firebase에서 생성된 고유 키
+        userId = userRef.key;
 
         userRef.set({ nickname }).then(() => {
-          // 닉네임과 사용자 ID를 로컬 스토리지에 저장
           localStorage.setItem('nickname', nickname);
           localStorage.setItem('userId', userId);
           console.log('대기실에 새로 참여:', nickname);
         });
       } else {
-        // 이미 저장된 닉네임과 ID로 Firebase에 참여 여부 확인
         const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
         userRef.once('value').then((snapshot) => {
           if (!snapshot.exists()) {
-            userRef.set({ nickname }); // Firebase에 사용자 데이터 추가
+            userRef.set({ nickname });
           }
         });
       }
     }
 
-
-
     // 사용자 목록 렌더링
     function renderUserList(users) {
       const userList = document.getElementById('userList');
       userList.innerHTML = '';
-
       for (const [userId, userData] of Object.entries(users || {})) {
         const li = document.createElement('li');
         li.textContent = userData.nickname;
@@ -131,116 +125,95 @@
     }
 
     // 폴더 데이터 생성
-function createFoldersData(depth = 0, maxDepth = 5) {
-  if (depth >= maxDepth) return {};
+    function createFoldersData(depth = 0, maxDepth = 5) {
+      if (depth >= maxDepth) return {};
 
-  const folders = {};
-  const numFolders = Math.floor(Math.random() * 3) + 3; // 3~5개의 폴더 생성
+      const folders = {};
+      const numFolders = Math.floor(Math.random() * 3) + 3;
 
-  for (let i = 0; i < numFolders; i++) {
-    const folderId = `folder${Math.random().toString(36).substring(2, 6)}`;
-    const files = {};
+      for (let i = 0; i < numFolders; i++) {
+        const folderId = `folder${Math.random().toString(36).substring(2, 6)}`;
+        const files = {};
+        const numFiles = Math.floor(Math.random() * 4);
+        for (let j = 0; j < numFiles; j++) {
+          const fileId = `file${Math.random().toString(36).substring(2, 6)}`;
+          files[fileId] = {
+            name: `파일 ${Math.floor(Math.random() * 1000)}.txt`,
+            state: 'normal',
+          };
+        }
 
-    // 파일 생성
-    const numFiles = Math.floor(Math.random() * 4); // 최대 4개의 파일 생성
-    for (let j = 0; j < numFiles; j++) {
-      const fileId = `file${Math.random().toString(36).substring(2, 6)}`;
-      files[fileId] = {
-        name: `파일 ${Math.floor(Math.random() * 1000)}.txt`,
-        state: 'normal', // 기본 상태 설정
-      };
+        folders[folderId] = {
+          name: `폴더 ${Math.random().toString(36).substring(2, 6)}`,
+          files: files,
+          subfolders: createFoldersData(depth + 1, maxDepth),
+        };
+      }
+
+      return folders;
     }
 
-    // 폴더 생성
-    folders[folderId] = {
-      name: `폴더 ${Math.random().toString(36).substring(2, 6)}`,
-      files: files,
-      subfolders: createFoldersData(depth + 1, maxDepth), // 하위 폴더 재귀 생성
-    };
-  }
+    // 역할 배정 및 게임 시작
+    function assignRolesAndStartGame() {
+      const roomRef = firebase.database().ref(`rooms/${currentRoom}`);
 
-  return folders;
-}
+      roomRef.transaction((roomData) => {
+        if (!roomData) {
+          roomData = {};
+        }
 
+        if (roomData.gameStarted) {
+          alert('게임이 이미 시작되었습니다!');
+          return;
+        }
 
-    // 역할 랜덤 배정
-  function assignRolesToUsers() {
-    const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
-    userRef.once('value').then((snapshot) => {
-      const users = snapshot.val();
-      if (!users) return;
+        roomData.gameStarted = true;
+        roomData.folders = createFoldersData();
 
-      const userIds = Object.keys(users);
-      //const roles = ['Vaccine', 'Malware'];
-      const roles = ['Malware'];
+        const roles = ['Vaccine', 'Malware'];
+        if (roomData.users) {
+          const userIds = Object.keys(roomData.users);
+          userIds.forEach((userId, index) => {
+            roomData.users[userId].role = roles[index % roles.length];
+          });
+        }
 
-      // 사용자별 역할 랜덤 배정
-      userIds.forEach((userId, index) => {
-        const assignedRole = roles[index % roles.length];
-        userRef.child(userId).update({ role: assignedRole });
-      });
-
-      alert('역할이 설정되었습니다!');
-    });
-  }
-
-  // 사용자 역할 가져오기
-  function getUserRole() {
-    const userId = localStorage.getItem('userId');
-    if (!userId) return;
-
-    const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
-    userRef.once('value').then((snapshot) => {
-      const userData = snapshot.val();
-      if (userData && userData.role) {
-        localStorage.setItem('role', userData.role); // 로컬스토리지에 역할 저장
-        alert(`당신의 역할은 ${userData.role === 'Vaccine' ? '백신' : '악성코드'}입니다.`);
-      }
-    });
-  }
-
-  function startGame() {
-    const roomRef = firebase.database().ref(`rooms/${currentRoom}`);
-
-    roomRef.transaction((roomData) => {
-      if (!roomData) {
-        roomData = {};
-      }
-
-      // 게임이 이미 시작되었으면 아무 작업도 하지 않음
-      if (roomData.gameStarted) {
-        alert('게임이 이미 시작되었습니다!');
-        return; // 트랜잭션 종료
-      }
-
-      // 게임 상태를 시작으로 설정
-      roomData.gameStarted = true;
-
-      // 폴더 데이터 생성
-      roomData.folders = createFoldersData();
-
-      return roomData; // 업데이트된 데이터 반환
-    })
-      .then(() => {
+        return roomData;
+      }).then(() => {
         console.log('게임 시작!');
-        localStorage.setItem('currentRoom', currentRoom); // 방 정보 유지
-        window.location.href = 'map.html'; // 폴더 페이지로 이동
-      })
-      .catch((error) => {
+        alert('게임이 시작되었습니다!');
+      }).catch((error) => {
         console.error('게임 시작 중 오류:', error);
       });
-  }
+    }
 
+    // 역할 및 게임 시작 상태 감지
+    function listenForRoleAndGameStart() {
+      const userId = localStorage.getItem('userId');
+      const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
 
-  document.getElementById('roomTitle').textContent = `대기실: ${currentRoom}`;
-  joinRoom();
-  fetchUserList();
+      userRef.on('value', (snapshot) => {
+        const userData = snapshot.val();
+        if (userData && userData.role) {
+          alert(`당신의 역할은 ${userData.role === 'Vaccine' ? '백신' : '악성코드'}입니다.`);
+        }
+      });
 
-  // 게임 시작 버튼 이벤트
-  document.querySelector('.start-game').addEventListener('click', startGame);
+      const roomRef = firebase.database().ref(`rooms/${currentRoom}/gameStarted`);
+      roomRef.on('value', (snapshot) => {
+        if (snapshot.val() === true) {
+          window.location.href = 'map.html';
+        }
+      });
+    }
 
-  // 역할 가져오기 (대기실에서도 표시 가능)
-  getUserRole();
+    // 초기화
+    document.getElementById('roomTitle').textContent = `대기실: ${currentRoom}`;
+    joinRoom();
+    fetchUserList();
+    listenForRoleAndGameStart();
+
+    document.querySelector('.start-game').addEventListener('click', assignRolesAndStartGame);
   </script>
 </body>
 </html>
