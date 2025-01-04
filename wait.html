@@ -163,6 +163,7 @@
       if (!users[userId].role) {
         // 역할이 아직 할당되지 않은 사용자에게 역할 할당
         users[userId].role = roles[currentRoleIndex % roles.length];
+        localStorage.setItem('role', users[userId].role);
         currentRoleIndex++;
       }
     });
