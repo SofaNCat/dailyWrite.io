@@ -1,4 +1,3 @@
-<!-- 로비 페이지 -->
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -47,12 +46,83 @@
     .create-room:hover {
       background-color: #45a049;
     }
+    .popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: white;
+      border: 1px solid #ddd;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+      z-index: 1000;
+    }
+    .popup input, .popup select {
+      width: calc(100% - 20px);
+      margin-bottom: 10px;
+      padding: 8px;
+      border: 1px solid #ccc;
+      border-radius: 5px;
+    }
+    .popup button {
+      padding: 10px 15px;
+      margin-right: 10px;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    .popup .create {
+      background-color: #4CAF50;
+      color: white;
+    }
+    .popup .cancel {
+      background-color: #f44336;
+      color: white;
+    }
+    .popup .create:hover {
+      background-color: #45a049;
+    }
+    .popup .cancel:hover {
+      background-color: #d32f2f;
+    }
+    .overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.5);
+      z-index: 999;
+    }
   </style>
 </head>
 <body>
   <h1>로비</h1>
   <button class="create-room">게임방 생성</button>
   <ul class="room-list" id="roomList"></ul>
+
+  <div class="overlay"></div>
+  <div class="popup" id="roomPopup">
+    <h3>게임방 생성</h3>
+    <input type="text" id="userName" placeholder="사용자 이름" required>
+    <select id="visibility">
+      <option value="public">공개</option>
+      <option value="private">비공개</option>
+    </select>
+    <input type="password" id="roomPassword" placeholder="비밀번호 (비공개 방만)" style="display: none;">
+    <button class="create">생성</button>
+    <button class="cancel">취소</button>
+  </div>
+
+  <div class="popup" id="passwordPopup" style="display: none;">
+    <h3>비공개 방 입장</h3>
+    <input type="password" id="inputPassword" placeholder="비밀번호 입력" required>
+    <button class="join">입장</button>
+    <button class="cancel">취소</button>
+  </div>
 
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
@@ -82,10 +152,13 @@
 
       for (const [roomId, roomData] of Object.entries(rooms || {})) {
         const li = document.createElement('li');
-        li.textContent = `방 ID: ${roomId}, 이름: ${roomData.name || '무제'}`;
+        li.textContent = `(${roomId}) ${roomData.host}의 방 (${roomData.visibility === 'private' ? '비공개' : '공개'})`;
         li.onclick = () => {
-          localStorage.setItem('currentRoom', roomId);
-          window.location.href = 'wait.html'; // 대기실 페이지로 이동
+          if (roomData.visibility === 'private') {
+            showPasswordPopup(roomId, roomData.password);
+          } else {
+            joinRoom(roomId);
+          }
         };
         roomList.appendChild(li);
       }
@@ -99,19 +172,107 @@
       });
     }
 
+    function showPopup() {
+      document.getElementById('roomPopup').style.display = 'block';
+      document.querySelector('.overlay').style.display = 'block';
+    }
+
+    function hidePopup() {
+      document.getElementById('roomPopup').style.display = 'none';
+      document.querySelector('.overlay').style.display = 'none';
+    }
+
+    function showPasswordPopup(roomId, correctPassword) {
+      const passwordPopup = document.getElementById('passwordPopup');
+      passwordPopup.style.display = 'block';
+      document.querySelector('.overlay').style.display = 'block';
+
+      const joinButton = passwordPopup.querySelector('.join');
+      joinButton.onclick = () => {
+        const inputPassword = document.getElementById('inputPassword').value;
+        if (inputPassword === correctPassword) {
+          hidePasswordPopup();
+          joinRoom(roomId);
+        } else {
+          alert('비밀번호가 틀렸습니다.');
+        }
+      };
+
+      const cancelButton = passwordPopup.querySelector('.cancel');
+      cancelButton.onclick = hidePasswordPopup;
+    }
+
+    function hidePasswordPopup() {
+      document.getElementById('passwordPopup').style.display = 'none';
+      document.querySelector('.overlay').style.display = 'none';
+    }
+
+    function handleVisibilityChange() {
+      const visibility = document.getElementById('visibility').value;
+      const passwordField = document.getElementById('roomPassword');
+      passwordField.style.display = visibility === 'private' ? 'block' : 'none';
+    }
+
     function createRoom() {
+      const userName = document.getElementById('userName').value;
+      const visibility = document.getElementById('visibility').value;
+      const roomPassword = document.getElementById('roomPassword').value;
+
+      if (!userName) {
+        alert('사용자 이름은 필수입니다.');
+        return;
+      }
+
+      if (visibility === 'private' && !roomPassword) {
+        alert('비공개 방의 경우 비밀번호를 입력해야 합니다.');
+        return;
+      }
+
       const roomId = generateRandomCode();
       const roomRef = firebase.database().ref(`rooms/${roomId}`);
       roomRef.set({
-        name: `게임방 ${roomId}`,
-        createdAt: Date.now(),
-        users: {},
+        host: userName,
+        visibility: visibility,
+        password: visibility === 'private' ? roomPassword : null,
+        users: {
+          0: { name: userName, role: '방장' }
+        },
+        isStarted: false
       }).then(() => {
-        alert(`게임방 ${roomId}이 생성되었습니다.`);
+        alert(`게임방이 생성되었습니다. 방장: ${userName}`);
+        hidePopup();
+        localStorage.setItem('currentRoom', roomId);
+        localStorage.setItem('userName', userName);
+        localStorage.setItem('role', '방장');
+        window.location.href = 'wait.html'; // 대기실 페이지로 이동
       });
     }
 
-    document.querySelector('.create-room').addEventListener('click', createRoom);
+    function joinRoom(roomId) {
+      const userName = prompt('사용자 이름을 입력하세요:');
+      if (!userName) {
+        alert('사용자 이름을 입력해야 합니다.');
+        return;
+      }
+
+      const roomRef = firebase.database().ref(`rooms/${roomId}/users`);
+      roomRef.child(1).set({
+        name: userName,
+        role: '참가자'
+      }).then(() => {
+        localStorage.setItem('currentRoom', roomId);
+        localStorage.setItem('userName', userName);
+        localStorage.setItem('role', '참가자');
+        window.location.href = 'wait.html'; // 대기실 페이지로 이동
+      });
+    }
+
+
+    document.querySelector('.create-room').addEventListener('click', showPopup);
+    document.querySelector('.popup .cancel').addEventListener('click', hidePopup);
+    document.querySelector('.popup .create').addEventListener('click', createRoom);
+    document.getElementById('visibility').addEventListener('change', handleVisibilityChange);
+
     fetchRoomList();
   </script>
 </body>
