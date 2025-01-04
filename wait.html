@@ -163,6 +163,8 @@
       // 사용자별 역할 랜덤 배정
       userIds.forEach((userId, index) => {
         const assignedRole = roles[index % roles.length];
+        localStorage.setItem('role', assignedRole);
+        console.log(assignedRole);
         userRef.child(userId).update({ role: assignedRole });
       });
 
