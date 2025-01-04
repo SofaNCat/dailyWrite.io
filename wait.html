@@ -81,27 +81,32 @@
 
     // 사용자를 대기실에 추가
     function joinRoom() {
-        const nickname = localStorage.getItem('nickname');
-        const userId = localStorage.getItem('userId');
+      let nickname = localStorage.getItem('nickname');
+      let userId = localStorage.getItem('userId');
 
-        if (nickname && userId) {
-            // 이미 참여한 사용자라면 추가 작업 필요 없음
-            console.log('이미 대기실에 참여 중:', nickname);
-            return;
-        }
-
+      if (!nickname || !userId) {
         // 새 닉네임 생성 및 Firebase에 추가
-        const newNickname = generateRandomNickname();
+        nickname = generateRandomNickname();
         const userRef = firebase.database().ref(`rooms/${currentRoom}/users`).push();
-        const newUserId = userRef.key; // Firebase에서 생성된 고유 키
+        userId = userRef.key; // Firebase에서 생성된 고유 키
 
-        userRef.set({ nickname: newNickname }).then(() => {
-            // 닉네임과 사용자 ID를 로컬 스토리지에 저장
-            localStorage.setItem('nickname', newNickname);
-            localStorage.setItem('userId', newUserId);
-            console.log('대기실에 새로 참여:', newNickname);
+        userRef.set({ nickname }).then(() => {
+          // 닉네임과 사용자 ID를 로컬 스토리지에 저장
+          localStorage.setItem('nickname', nickname);
+          localStorage.setItem('userId', userId);
+          console.log('대기실에 새로 참여:', nickname);
         });
+      } else {
+        // 이미 저장된 닉네임과 ID로 Firebase에 참여 여부 확인
+        const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
+        userRef.once('value').then((snapshot) => {
+          if (!snapshot.exists()) {
+            userRef.set({ nickname }); // Firebase에 사용자 데이터 추가
+          }
+        });
+      }
     }
+
 
 
     // 사용자 목록 렌더링
@@ -167,7 +172,7 @@ function createFoldersData(depth = 0, maxDepth = 5) {
 
       const userIds = Object.keys(users);
       //const roles = ['Vaccine', 'Malware'];
-      const roles = ['Vaccine'];
+      const roles = ['Malware'];
 
       // 사용자별 역할 랜덤 배정
       userIds.forEach((userId, index) => {
