@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>심리전 카드 게임</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      margin: 20px;
+    }
+    .card-container {
+      display: flex;
+      justify-content: center;
+      margin: 10px;
+    }
+    .card {
+      width: 80px;
+      height: 120px;
+      margin: 5px;
+      border: 2px solid #333;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .selected {
+      background-color: #ffcccb;
+    }
+    .result {
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+  <h1>심리전 카드 게임</h1>
+  <div>
+    <h2 id="player1-title">플레이어 1</h2>
+    <div id="player1-cards" class="card-container"></div>
+  </div>
+  <div>
+    <h2>더미 카드</h2>
+    <div id="dummy-card" class="card-container"></div>
+  </div>
+  <div>
+    <h2 id="player2-title">플레이어 2</h2>
+    <div id="player2-cards" class="card-container"></div>
+  </div>
+  <button id="end-turn">턴 종료</button>
+  <button id="next-round">다음 라운드</button>
+  <div class="result">
+    <h3 id="round-result">결과: -</h3>
+  </div>
+</body>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+<script>
+    // Firebase 초기화 및 설정
+    const firebaseConfig = {
+        apiKey: "AIzaSyALH2cc2T41m3C8_Bqt98yFP0NJqeTTmKU",
+        authDomain: "coupong-50898.firebaseapp.com",
+        databaseURL: "https://coupong-50898-default-rtdb.firebaseio.com",
+        projectId: "coupong-50898",
+        storageBucket: "coupong-50898.firebasestorage.app",
+        messagingSenderId: "396007126503",
+        appId: "1:396007126503:web:e8caa6aaafb48f54a5b942",
+        measurementId: "G-R2604RJDDV"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    const userName = localStorage.getItem('userName');
+    const roomId = localStorage.getItem('currentRoom');
+    if (!roomId) {
+        alert('방 ID를 찾을 수 없습니다. 로비로 돌아갑니다.');
+        window.location.href = 'index.html';
+    }
+    const roomGameStateRef = database.ref(`rooms/${roomId}/gameState`);
+
+    // 게임 상태 초기화 함수
+    function initializeGameData() {
+        const cardTypes = [
+            { front: "양", back: "양" },
+            { front: "늑대", back: "늑대" },
+            { front: "배추", back: "배추" },
+            { front: "늑대", back: "양" },
+            { front: "농부", back: "배추" }
+        ];
+
+        const fullDeck = [...cardTypes, ...cardTypes, ...cardTypes];
+
+        const player1Cards = fullDeck.splice(0, 5);
+        const player2Cards = fullDeck.splice(0, 5);
+        const dummyDeck = fullDeck;
+
+        const gameState = {
+            player1: { cards: player1Cards, selectedCard: null, turnEnded: false },
+            player2: { cards: player2Cards, selectedCard: null, turnEnded: false },
+            dummyDeck: dummyDeck,
+            round: 1
+        };
+
+        roomGameStateRef.set(gameState).then(() => {
+            console.log("Game initialized!");
+        });
+    }
+
+    // 게임 데이터 실시간 업데이트
+    roomGameStateRef.on("value", (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+            updateUI(data);
+        }
+    });
+
+    // UI 업데이트 함수
+    function updateUI(data) {
+        const usersRef = database.ref(`rooms/${roomId}/users`);
+
+        usersRef.once("value").then((snapshot) => {
+            const users = snapshot.val();
+            const player1Name = users["0"]?.name || "플레이어 1";
+            const player2Name = users["1"]?.name || "플레이어 2";
+
+            const myPosition = localStorage.getItem('playerPosition') || (player1Name === userName ? "player1" : "player2");
+            localStorage.setItem('playerPosition', myPosition);
+            const opponentPosition = myPosition === "player1" ? "player2" : "player1";
+
+            const myTitle = `${userName} (나)`;
+            const opponentTitle = myPosition === "player1" ? player2Name : player1Name;
+
+            document.getElementById('player1-title').textContent = opponentTitle;
+            document.getElementById('player2-title').textContent = myTitle;
+
+            const myCards = data[myPosition].cards;
+            const opponentCards = data[opponentPosition].cards;
+            const dummyDeck = data.dummyDeck;
+
+            renderCards("player1", opponentCards, data[opponentPosition].selectedCard, true);
+            renderCards("player2", myCards, data[myPosition].selectedCard);
+            renderDummyDeck(dummyDeck);
+        });
+    }
+
+    function renderCards(player, cards, selectedCardIndex, isOpponent = false) {
+        const container = document.getElementById(`${player}-cards`);
+        container.innerHTML = "";
+
+        cards.forEach((card, index) => {
+            const cardElement = document.createElement("div");
+            cardElement.className = "card";
+            cardElement.textContent = isOpponent ? card.back : card.front;
+            if (index === selectedCardIndex) {
+                cardElement.classList.add("selected");
+            }
+            cardElement.addEventListener("click", () => {
+                if (!isOpponent) selectCard(player, index);
+            });
+            container.appendChild(cardElement);
+        });
+    }
+
+    function renderDummyDeck(dummyDeck) {
+        const container = document.getElementById("dummy-card");
+        container.innerHTML = `남은 더미 카드: ${dummyDeck.length}`;
+    }
+
+    // 카드 선택 업데이트
+    function selectCard(player, cardIndex) {
+        const playerRef = roomGameStateRef.child(`${localStorage.getItem('playerPosition')}/selectedCard`);
+        playerRef.set(cardIndex).then(() => {
+            console.log(`카드 선택 완료: ${cardIndex}`);
+        });
+    }
+
+    // 턴 종료 로직
+    document.getElementById("end-turn").addEventListener("click", () => {
+        const playerRef = roomGameStateRef.child(`${localStorage.getItem('playerPosition')}/turnEnded`);
+        playerRef.set(true).then(() => {
+            console.log("턴 종료");
+            document.getElementById("end-turn").disabled = true; // 버튼 비활성화
+            checkRoundReady();
+        });
+    });
+
+    // 라운드 준비 확인 및 승부 결정
+    function checkRoundReady() {
+        roomGameStateRef.once("value").then((snapshot) => {
+            const data = snapshot.val();
+            const player1TurnEnded = data.player1.turnEnded || false;
+            const player2TurnEnded = data.player2.turnEnded || false;
+
+            if (player1TurnEnded && player2TurnEnded) {
+                determineWinner(data);
+            }
+        });
+    }
+
+    // 승부 결정
+    function determineWinner(data) {
+        const player1Card = data.player1.cards[data.player1.selectedCard];
+        const player2Card = data.player2.cards[data.player2.selectedCard];
+        const dummyDeck = data.dummyDeck;
+
+        let result = "무승부";
+        if (player1Card.front === "농부" && player2Card.back === "늑대") result = "플레이어 1 승리";
+        else if (player1Card.front === "늑대" && player2Card.back === "양") result = "플레이어 1 승리";
+        else if (player1Card.front === "배추" && player2Card.back === "늑대") result = "플레이어 1 승리";
+        else if (player1Card.front === "양" && player2Card.back === "배추") result = "플레이어 1 승리";
+        else if (player2Card.front === "농부" && player1Card.back === "늑대") result = "플레이어 2 승리";
+        else if (player2Card.front === "늑대" && player1Card.back === "양") result = "플레이어 2 승리";
+
+        if (result === "무승부" && dummyDeck.length > 0) {
+            const dummyCard = dummyDeck[0];
+            if (player1Card.front === "농부" && player2Card.back === "양") {
+                result = dummyCard.back === "농부" || dummyCard.back === "배추" ? "플레이어 1 승리" : "플레이어 2 승리";
+            } else if (player1Card.front === "농부" && player2Card.back === "배추") {
+                result = dummyCard.back === "늑대" || dummyCard.back === "농부" ? "플레이어 1 승리" : "플레이어 2 승리";
+            }
+        }
+
+        console.log("라운드 결과:", result);
+        document.getElementById("round-result").textContent = `결과: ${result}`;
+        endRound(data);
+    }
+
+
+    // 라운드 종료 및 초기화
+    function endRound(data) {
+        roomGameStateRef.child("player1/selectedCard").set(null);
+        roomGameStateRef.child("player1/turnEnded").set(false);
+        roomGameStateRef.child("player2/selectedCard").set(null);
+        roomGameStateRef.child("player2/turnEnded").set(false);
+        roomGameStateRef.child("round").set(data.round + 1);
+    }
+
+    // 초기화 실행
+    initializeGameData();
+
+
+</script>
+</html>
