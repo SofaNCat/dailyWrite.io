@@ -194,6 +194,7 @@ async function assignRolesAndStartGame() {
         const userData = snapshot.val();
         if (userData && userData.role) {
           alert(`당신의 역할은 ${userData.role === 'Vaccine' ? '백신' : '악성코드'}입니다.`);
+          window.location.href = 'map.html';
         }
       });
 
