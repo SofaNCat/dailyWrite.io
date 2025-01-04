@@ -73,41 +73,47 @@
       window.location.href = 'lobby.html';
     }
 
-    // 닉네임 생성 및 사용자 추가
     function generateRandomNickname() {
       const adjectives = ['빠른', '강한', '똑똑한', '용감한'];
       const animals = ['호랑이', '사자', '토끼', '독수리'];
       return `${adjectives[Math.floor(Math.random() * adjectives.length)]} ${animals[Math.floor(Math.random() * animals.length)]}`;
     }
 
+    // 사용자를 대기실에 추가
     function joinRoom() {
       let nickname = localStorage.getItem('nickname');
       let userId = localStorage.getItem('userId');
 
       if (!nickname || !userId) {
+        // 새 닉네임 생성 및 Firebase에 추가
         nickname = generateRandomNickname();
         const userRef = firebase.database().ref(`rooms/${currentRoom}/users`).push();
-        userId = userRef.key;
+        userId = userRef.key; // Firebase에서 생성된 고유 키
 
         userRef.set({ nickname }).then(() => {
+          // 닉네임과 사용자 ID를 로컬 스토리지에 저장
           localStorage.setItem('nickname', nickname);
           localStorage.setItem('userId', userId);
           console.log('대기실에 새로 참여:', nickname);
         });
       } else {
+        // 이미 저장된 닉네임과 ID로 Firebase에 참여 여부 확인
         const userRef = firebase.database().ref(`rooms/${currentRoom}/users/${userId}`);
         userRef.once('value').then((snapshot) => {
           if (!snapshot.exists()) {
-            userRef.set({ nickname });
+            userRef.set({ nickname }); // Firebase에 사용자 데이터 추가
           }
         });
       }
     }
 
+
+
     // 사용자 목록 렌더링
     function renderUserList(users) {
       const userList = document.getElementById('userList');
       userList.innerHTML = '';
+
       for (const [userId, userData] of Object.entries(users || {})) {
         const li = document.createElement('li');
         li.textContent = userData.nickname;
@@ -125,33 +131,37 @@
     }
 
     // 폴더 데이터 생성
-    function createFoldersData(depth = 0, maxDepth = 5) {
-      if (depth >= maxDepth) return {};
+function createFoldersData(depth = 0, maxDepth = 5) {
+  if (depth >= maxDepth) return {};
 
-      const folders = {};
-      const numFolders = Math.floor(Math.random() * 3) + 3;
+  const folders = {};
+  const numFolders = Math.floor(Math.random() * 3) + 3; // 3~5개의 폴더 생성
 
-      for (let i = 0; i < numFolders; i++) {
-        const folderId = `folder${Math.random().toString(36).substring(2, 6)}`;
-        const files = {};
-        const numFiles = Math.floor(Math.random() * 4);
-        for (let j = 0; j < numFiles; j++) {
-          const fileId = `file${Math.random().toString(36).substring(2, 6)}`;
-          files[fileId] = {
-            name: `파일 ${Math.floor(Math.random() * 1000)}.txt`,
-            state: 'normal',
-          };
-        }
+  for (let i = 0; i < numFolders; i++) {
+    const folderId = `folder${Math.random().toString(36).substring(2, 6)}`;
+    const files = {};
 
-        folders[folderId] = {
-          name: `폴더 ${Math.random().toString(36).substring(2, 6)}`,
-          files: files,
-          subfolders: createFoldersData(depth + 1, maxDepth),
-        };
-      }
-
-      return folders;
+    // 파일 생성
+    const numFiles = Math.floor(Math.random() * 4); // 최대 4개의 파일 생성
+    for (let j = 0; j < numFiles; j++) {
+      const fileId = `file${Math.random().toString(36).substring(2, 6)}`;
+      files[fileId] = {
+        name: `파일 ${Math.floor(Math.random() * 1000)}.txt`,
+        state: 'normal', // 기본 상태 설정
+      };
     }
+
+    // 폴더 생성
+    folders[folderId] = {
+      name: `폴더 ${Math.random().toString(36).substring(2, 6)}`,
+      files: files,
+      subfolders: createFoldersData(depth + 1, maxDepth), // 하위 폴더 재귀 생성
+    };
+  }
+
+  return folders;
+}
+
 
     // 역할 배정 및 게임 시작
     function assignRolesAndStartGame() {
