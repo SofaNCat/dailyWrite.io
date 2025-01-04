@@ -140,16 +140,15 @@
       console.log(`첫 번째 플레이어 직업: ${firstRole}, 두 번째 플레이어 직업: ${secondRole}`);
 
       await userRef.transaction((users) => {
-        if (!users || Object.keys(users).length !== 2) {
-          throw new Error('사용자가 정확히 2명이어야 합니다.');
+        if (!users || Object.keys(users).length < 2) {
+          throw new Error('사용자가 2명 이상이어야 역할을 설정할 수 있습니다.');
         }
 
         const userIds = Object.keys(users);
-        users[userIds[0]].role = firstRole;
-        users[userIds[1]].role = secondRole;
+        if (!users[userIds[0]].role) users[userIds[0]].role = firstRole;
+        if (!users[userIds[1]].role) users[userIds[1]].role = secondRole;
 
-        localStorage.setItem('role', firstRole); // 첫 번째 플레이어 로컬 저장
-
+        localStorage.setItem('role', users[localStorage.getItem('userId')].role);
         return users;
       });
 
@@ -157,7 +156,7 @@
     }
 
     async function assignRolesAndStartGame() {
-      const roomRef = firebase.database().ref(`rooms/${currentRoom}`);
+      const roomcheckRef = firebase.database().ref(`rooms/${currentRoom}`);
       const foldersRef = firebase.database().ref(`rooms/${currentRoom}/folders`);
       const userRef = firebase.database().ref(`rooms/${currentRoom}/users`);
 
@@ -167,24 +166,23 @@
 
         if (!users || Object.keys(users).length !== 2) {
           alert('사용자가 정확히 2명이어야 게임을 시작할 수 있습니다.');
-          throw new Error('사용자가 정확히 2명이 아닙니다.');
+          return;
         }
 
-        const snapshot = await roomRef.once('value');
+        const snapshot = await roomcheckRef.once('value');
         const roomData = snapshot.val();
 
         if (roomData && roomData.isStarted) {
           console.log('게임이 이미 시작되었습니다.');
-          window.location.href = 'map.html';
           return;
         }
 
         const foldersData = createFoldersData();
-        await roomRef.update({ isStarted: true });
+        await roomcheckRef.update({ isStarted: true });
         await foldersRef.set(foldersData);
-
-        console.log('폴더 데이터 저장 완료.');
         await assignRolesToUsers();
+
+        console.log('게임 시작 성공!');
         window.location.href = 'map.html';
       } catch (error) {
         console.error('게임 시작 중 오류 발생:', error.message);
