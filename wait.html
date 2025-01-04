@@ -170,20 +170,50 @@
     });
   }
 
-async function assignRolesAndStartGame() {
-  // 폴더 데이터 생성
-  const folderData = createFoldersData();
-    const roomRef = firebase.database().ref(`rooms/${currentRoom}/folders`);
+  async function assignRolesAndStartGame() {
+  const roomcheckRef = firebase.database().ref(`rooms/${currentRoom}`);
+  const roomRef = firebase.database().ref(`rooms/${currentRoom}/folders`);
 
-    // 역할 설정 및 폴더 저장
-    roomRef.set(folderData).then(() => {
-      assignRolesToUsers(); // 역할 설정
+  // 방 상태 확인
+  roomcheckRef.once('value').then((snapshot) => {
+    const roomData = snapshot.val();
+
+    if (roomData && roomData.isStarted) {
+      // 게임이 이미 시작된 경우
+      console.log('게임이 이미 시작되었습니다. 역할만 배정합니다.');
+      assignRolesToUsers(); // 역할만 배정
       setTimeout(() => {
-        localStorage.setItem('currentRoom', currentRoom); // 방 정보 유지
+        localStorage.setItem('currentRoom', currentRoom);
         window.location.href = 'map.html'; // 폴더 페이지로 이동
-      }, 1000); // 역할 설정 후 1초 대기
-    });
-  }
+      }, 1000);
+    } else {
+      // 게임이 아직 시작되지 않은 경우
+      console.log('게임이 시작되지 않았습니다. 폴더를 저장하고 역할을 배정합니다.');
+
+      // 폴더 데이터 생성
+      const folderData = createFoldersData();
+
+      // isStarted 설정 및 폴더 데이터 저장
+      roomcheckRef.update({ isStarted: true }).then(() => {
+        roomRef.set(folderData).then(() => {
+          console.log('폴더 데이터 저장 완료. 역할을 배정합니다.');
+          assignRolesToUsers(); // 역할 설정
+          setTimeout(() => {
+            localStorage.setItem('currentRoom', currentRoom);
+            window.location.href = 'map.html'; // 폴더 페이지로 이동
+          }, 1000);
+        }).catch((error) => {
+          console.error('폴더 데이터 저장 중 오류 발생:', error);
+        });
+      }).catch((error) => {
+        console.error('isStarted 설정 중 오류 발생:', error);
+      });
+    }
+  }).catch((error) => {
+    console.error('Firebase에서 방 상태 확인 중 오류 발생:', error);
+  });
+}
+
 
     function listenForRoleAndGameStart() {
       const userId = localStorage.getItem('userId');
