@@ -129,15 +129,26 @@
             const player1Name = users["0"]?.name || "플레이어 1";
             const player2Name = users["1"]?.name || "플레이어 2";
 
-            const myPosition = localStorage.getItem('playerPosition') || (player1Name === userName ? "player1" : "player2");
+            // 현재 사용자 이름을 기준으로 포지션 결정
+            const myPosition = localStorage.getItem('playerPosition') || 
+                (player1Name === userName ? "player1" : "player2");
             localStorage.setItem('playerPosition', myPosition);
+
             const opponentPosition = myPosition === "player1" ? "player2" : "player1";
 
+            // 플레이어 이름 설정
             const myTitle = `${userName} (나)`;
             const opponentTitle = myPosition === "player1" ? player2Name : player1Name;
 
-            document.getElementById('player1-title').textContent = opponentTitle;
-            document.getElementById('player2-title').textContent = myTitle;
+            if (myPosition === "player1") {
+                // 플레이어 1이면 상단이 상대방, 하단이 본인
+                document.getElementById('player1-title').textContent = opponentTitle;
+                document.getElementById('player2-title').textContent = myTitle;
+            } else {
+                // 플레이어 2이면 상단이 상대방, 하단이 본인
+                document.getElementById('player1-title').textContent = opponentTitle;
+                document.getElementById('player2-title').textContent = myTitle;
+            }
 
             const myCards = data[myPosition].cards;
             const opponentCards = data[opponentPosition].cards;
@@ -148,6 +159,7 @@
             renderDummyDeck(dummyDeck);
         });
     }
+
 
     function renderCards(player, cards, selectedCardIndex, isOpponent = false) {
         const container = document.getElementById(`${player}-cards`);
