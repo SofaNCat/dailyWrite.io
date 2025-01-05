@@ -116,6 +116,8 @@
 
     // 게임 상태 초기화 함수
     function initializeGameData() {
+        document.getElementById("next-round").disabled = true; // 버튼 비활성화
+
         const cardTypes = [
             { front: "양", back: "양", frontImage: "sheep.png", backImage: "sheep.png" },
             { front: "늑대", back: "늑대", frontImage: "wolf.png", backImage: "wolf.png" },
@@ -288,6 +290,7 @@
         playerRef.set(true).then(() => {
             console.log("턴 종료");
             document.getElementById("end-turn").disabled = true; // 버튼 비활성화
+            document.getElementById("next-round").disabled = false; // 버튼 활성화
         });
     });
 
@@ -319,13 +322,27 @@
         }
     }
 
-
-
     // 승부 결정
     function determineWinner(data) {
-        const player1Card = data.player1.cards[data.player1.selectedCard];
-        const player2Card = data.player2.cards[data.player2.selectedCard];
-        const dummyDeck = data.dummyDeck;
+        const player1SelectedIndex = data.player1.selectedCard;
+        const player2SelectedIndex = data.player2.selectedCard;
+
+        // 선택된 카드 인덱스 확인
+        if (player1SelectedIndex === null || player2SelectedIndex === null) {
+            console.error("카드가 선택되지 않았습니다.");
+            document.getElementById("round-result").textContent = "카드가 선택되지 않았습니다.";
+            return;
+        }
+
+        const player1Card = data.player1.cards[player1SelectedIndex];
+        const player2Card = data.player2.cards[player2SelectedIndex];
+
+        // 카드가 존재하는지 확인
+        if (!player1Card || !player2Card) {
+            console.error("선택된 카드 정보가 없습니다.");
+            document.getElementById("round-result").textContent = "선택된 카드 정보가 없습니다.";
+            return;
+        }
 
         let result = "무승부";
         if (player1Card.front === "농부" && player2Card.back === "늑대") result = "플레이어 1 승리";
@@ -335,8 +352,8 @@
         else if (player2Card.front === "농부" && player1Card.back === "늑대") result = "플레이어 2 승리";
         else if (player2Card.front === "늑대" && player1Card.back === "양") result = "플레이어 2 승리";
 
-        if (result === "무승부" && dummyDeck.length > 0) {
-            const dummyCard = dummyDeck[0];
+        if (result === "무승부" && data.dummyDeck.length > 0) {
+            const dummyCard = data.dummyDeck[0];
             if (player1Card.front === "농부" && player2Card.back === "양") {
                 result = dummyCard.back === "농부" || dummyCard.back === "배추" ? "플레이어 1 승리" : "플레이어 2 승리";
             } else if (player1Card.front === "농부" && player2Card.back === "배추") {
@@ -346,8 +363,13 @@
 
         console.log("라운드 결과:", result);
         document.getElementById("round-result").textContent = `결과: ${result}`;
-        endRound(data);
+        
     }
+
+    // 다음 라운드 로직
+    document.getElementById("next-round").addEventListener("click", () => {
+        endRound(data);
+    });
 
     // 라운드 종료 및 초기화
     function endRound(data) {
