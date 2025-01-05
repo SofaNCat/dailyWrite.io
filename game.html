@@ -92,11 +92,12 @@
             { front: "농부", back: "배추" }
         ];
 
-        const fullDeck = [...cardTypes, ...cardTypes, ...cardTypes];
+        /*const fullDeck = [...cardTypes, ...cardTypes, ...cardTypes];
+        fullDeck.sort(() => Math.random() - 0.5); // 카드를 무작위로 섞음*/
 
-        const player1Cards = fullDeck.splice(0, 5);
-        const player2Cards = fullDeck.splice(0, 5);
-        const dummyDeck = fullDeck;
+        const player1Cards = cardTypes.sort(() => Math.random() - 0.5);
+        const player2Cards = cardTypes.sort(() => Math.random() - 0.5);
+        const dummyDeck = cardTypes.sort(() => Math.random() - 0.5);
 
         const gameState = {
             player1: { cards: player1Cards, selectedCard: null, turnEnded: false },
@@ -115,6 +116,7 @@
         const data = snapshot.val();
         if (data) {
             updateUI(data);
+            checkRoundReady(data); // 추가: 상태 업데이트 시 턴 종료 확인
         }
     });
 
@@ -184,21 +186,39 @@
         playerRef.set(true).then(() => {
             console.log("턴 종료");
             document.getElementById("end-turn").disabled = true; // 버튼 비활성화
-            checkRoundReady();
         });
     });
 
     // 라운드 준비 확인 및 승부 결정
-    function checkRoundReady() {
-        roomGameStateRef.once("value").then((snapshot) => {
-            const data = snapshot.val();
-            const player1TurnEnded = data.player1.turnEnded || false;
-            const player2TurnEnded = data.player2.turnEnded || false;
+    function checkRoundReady(data) {
+        const player1TurnEnded = data.player1.turnEnded || false;
+        const player2TurnEnded = data.player2.turnEnded || false;
 
-            if (player1TurnEnded && player2TurnEnded) {
-                determineWinner(data);
-            }
-        });
+        if (player1TurnEnded && player2TurnEnded) {
+            revealSelectedCards(data); // 선택한 카드 공개
+            setTimeout(() => determineWinner(data), 2000); // 2초 후 결과 계산
+        }
+    }
+
+    // 선택한 카드 공개
+    function revealSelectedCards(data) {
+        const myPosition = localStorage.getItem('playerPosition');
+        const opponentPosition = myPosition === "player1" ? "player2" : "player1";
+
+        const mySelectedIndex = data[myPosition].selectedCard;
+        const opponentSelectedIndex = data[opponentPosition].selectedCard;
+
+        if (mySelectedIndex !== null) {
+            const myCardElement = document.getElementById("player2-cards").children[mySelectedIndex];
+            myCardElement.textContent = data[myPosition].cards[mySelectedIndex].back;
+            myCardElement.dataset.revealed = true; // 뒷면 유지 표시
+        }
+
+        if (opponentSelectedIndex !== null) {
+            const opponentCardElement = document.getElementById("player1-cards").children[opponentSelectedIndex];
+            opponentCardElement.textContent = data[opponentPosition].cards[opponentSelectedIndex].back;
+            opponentCardElement.dataset.revealed = true; // 뒷면 유지 표시
+        }
     }
 
     // 승부 결정
@@ -228,7 +248,6 @@
         document.getElementById("round-result").textContent = `결과: ${result}`;
         endRound(data);
     }
-
 
     // 라운드 종료 및 초기화
     function endRound(data) {
