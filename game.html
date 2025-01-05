@@ -214,23 +214,15 @@
     // 선택한 카드 공개
     function revealSelectedCards(data) {
         const myPosition = localStorage.getItem('playerPosition');
-        const opponentPosition = myPosition === "player1" ? "player2" : "player1";
-
         const mySelectedIndex = data[myPosition].selectedCard;
-        const opponentSelectedIndex = data[opponentPosition].selectedCard;
 
         if (mySelectedIndex !== null) {
             const myCardElement = document.getElementById("player2-cards").children[mySelectedIndex];
             myCardElement.textContent = data[myPosition].cards[mySelectedIndex].back;
             myCardElement.dataset.revealed = true; // 뒷면 유지 표시
         }
-
-        /*if (opponentSelectedIndex !== null) {
-            const opponentCardElement = document.getElementById("player1-cards").children[opponentSelectedIndex];
-            opponentCardElement.textContent = data[opponentPosition].cards[opponentSelectedIndex].back;
-            opponentCardElement.dataset.revealed = true; // 뒷면 유지 표시
-        }*/
     }
+
 
     // 승부 결정
     function determineWinner(data) {
