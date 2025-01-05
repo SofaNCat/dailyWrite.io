@@ -130,8 +130,7 @@
             const player2Name = users["1"]?.name || "플레이어 2";
 
             // 현재 사용자 이름을 기준으로 포지션 결정
-            const myPosition = localStorage.getItem('playerPosition') || 
-                (player1Name === userName ? "player1" : "player2");
+            const myPosition = (player1Name === userName ? "player1" : "player2");
             localStorage.setItem('playerPosition', myPosition);
 
             const opponentPosition = myPosition === "player1" ? "player2" : "player1";
