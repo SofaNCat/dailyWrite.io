@@ -133,20 +133,35 @@
             return array;
         }
 
-        // 각 플레이어와 더미에 한 세트씩 할당
-        const player1Cards = shuffle([...cardTypes]); // 플레이어 1의 카드 세트
-        const player2Cards = shuffle([...cardTypes]); // 플레이어 2의 카드 세트
-        const dummyDeck = shuffle([...cardTypes]);   // 더미 카드 세트
+        // 방 상태 확인
+        const roomRef = database.ref(`rooms/${roomId}`);
+        roomRef.once("value").then((snapshot) => {
+            const roomData = snapshot.val();
 
-        const gameState = {
-            player1: { cards: player1Cards, selectedCard: null, turnEnded: false },
-            player2: { cards: player2Cards, selectedCard: null, turnEnded: false },
-            dummyDeck: dummyDeck,
-            round: 1
-        };
+            // 게임이 이미 시작된 경우
+            if (roomData?.isStarted) {
+                console.log("게임이 이미 시작되었습니다. 기존 상태를 사용합니다.");
+                return;
+            }
 
-        roomGameStateRef.set(gameState).then(() => {
-            console.log("Game initialized!");
+            // 게임 시작: 카드 분배 및 상태 설정
+            const player1Cards = shuffle([...cardTypes]); // 플레이어 1의 카드 세트
+            const player2Cards = shuffle([...cardTypes]); // 플레이어 2의 카드 세트
+            const dummyDeck = shuffle([...cardTypes]);   // 더미 카드 세트
+
+            const gameState = {
+                player1: { cards: player1Cards, selectedCard: null, turnEnded: false },
+                player2: { cards: player2Cards, selectedCard: null, turnEnded: false },
+                dummyDeck: dummyDeck,
+                round: 1
+            };
+
+            roomRef.set({
+                isStarted: true, // 게임 시작 상태 설정
+                gameState: gameState,
+            }).then(() => {
+                console.log("Game initialized!");
+            });
         });
     }
 
