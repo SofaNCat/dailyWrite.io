@@ -364,12 +364,11 @@
         console.log("라운드 결과:", result);
         document.getElementById("round-result").textContent = `결과: ${result}`;
         
+        // 다음 라운드 로직
+        document.getElementById("next-round").addEventListener("click", () => {
+            endRound(data);
+        });
     }
-
-    // 다음 라운드 로직
-    document.getElementById("next-round").addEventListener("click", () => {
-        endRound(data);
-    });
 
     // 라운드 종료 및 초기화
     function endRound(data) {
@@ -377,6 +376,7 @@
         roomGameStateRef.child("player1/turnEnded").set(false);
         roomGameStateRef.child("player2/selectedCard").set(null);
         roomGameStateRef.child("player2/turnEnded").set(false);
+        document.getElementById("round-result").textContent = ``;
         roomGameStateRef.child("round").set(data.round + 1).then(() => {
             // UI 업데이트 강제 실행
             roomGameStateRef.once("value").then(snapshot => {
