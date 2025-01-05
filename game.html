@@ -204,24 +204,30 @@
                 cardElement.classList.add("flipped");
             }
 
+            // 상대방 카드는 항상 뒷면 표시
             const cardInner = document.createElement("div");
             cardInner.className = "card-inner";
 
             const cardFront = document.createElement("div");
             cardFront.className = "card-front";
-            cardFront.textContent = isOpponent ? "?" : card.front;
+            cardFront.textContent = isOpponent ? "" : card.front; // 상대방이면 앞면 표시하지 않음
 
             const cardBack = document.createElement("div");
             cardBack.className = "card-back";
-            cardBack.textContent = ""; // 초기에는 텍스트를 비워둠
+            cardBack.textContent = isOpponent ? card.back : ""; // 상대방이면 뒷면 표시
 
             cardInner.appendChild(cardFront);
             cardInner.appendChild(cardBack);
             cardElement.appendChild(cardInner);
 
-            cardElement.addEventListener("click", () => {
-                if (!isOpponent) selectCard(player, index);
-            });
+            if (index === selectedCardIndex) {
+                cardElement.classList.add("flipped"); // 선택된 카드가 뒤집히도록 설정
+            }
+
+            if (!isOpponent) {
+                cardElement.addEventListener("click", () => selectCard(player, index));
+            }
+            
             container.appendChild(cardElement);
         });
     }
