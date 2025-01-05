@@ -156,7 +156,7 @@
                 round: 1
             };
 
-            roomRef.set({
+            roomRef.update({
                 isStarted: true, // 게임 시작 상태 설정
                 gameState: gameState,
             }).then(() => {
